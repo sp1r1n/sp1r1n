@@ -4,25 +4,30 @@ on:
 jobs:
   probe:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: actions/setup-python@v5
-        with: {python-version: '3.12'}
-      - run: pip install -q curl_cffi==0.13.0
-      - run: curl -s -o /dev/null -w 'runner egress IP check: %{http_code}\n' https://api.ipify.org; echo "IP: $(curl -s https://api.ipify.org)"
-      - run: |
-          python - <<'EOF'
+        with:
+          python-version: '3.12'
+      - name: Install
+        run: pip install -q curl_cffi==0.13.0
+      - name: Egress IP
+        run: |
+          echo "egress IP: $(curl -s https://api.ipify.org)"
+      - name: Probe profiles
+        run: |
+          python - <<'PYEOF'
           from curl_cffi import requests
           import time
-          URL="https://wroclaw.pasport.org.ua/solutions/e-queue"
-          for prof in ["chrome","chrome124","chrome131","safari17_0","firefox133","edge101"]:
+          URL = "https://wroclaw.pasport.org.ua/solutions/e-queue"
+          for prof in ["chrome", "chrome124", "chrome131", "safari17_0", "firefox133"]:
               try:
-                  s=requests.Session(impersonate=prof)
-                  r=s.get(URL,timeout=40,headers={"Accept-Language":"uk-UA,uk;q=0.9,en;q=0.8"})
-                  body=r.text[:120].replace("\n"," ")
-                  print(f"{prof:12} -> {r.status_code}  cf-ray={r.headers.get('cf-ray')}  cf-mitigated={r.headers.get('cf-mitigated')}  len={len(r.text)}")
-                  print(f"             body: {body}")
+                  s = requests.Session(impersonate=prof)
+                  r = s.get(URL, timeout=40, headers={"Accept-Language": "uk-UA,uk;q=0.9,en;q=0.8"})
+                  print("%-12s -> %s cf-mitigated=%s len=%s" % (
+                      prof, r.status_code, r.headers.get("cf-mitigated"), len(r.text)))
+                  print("             body: %s" % r.text[:110].replace("\n", " "))
               except Exception as e:
-                  print(f"{prof:12} -> EXC {type(e).__name__}: {str(e)[:90]}")
+                  print("%-12s -> EXC %s %s" % (prof, type(e).__name__, str(e)[:80]))
               time.sleep(8)
-          EOF
+          PYEOF
